@@ -161,22 +161,44 @@ async def generate(start: int, stop: int) -> None:
 
     note_generators: List[Coroutine[Any, Any, LeetcodeNote]] = []
 
-    task_handles = await leetcode_data.all_problems_handles()
+    # task_handles = await leetcode_data.all_problems_handles()
+
+    problem_ids_to_slug = await leetcode_data.all_problems_ids_to_slug()
+
+    current_problems = await get_current_problem_ids()
 
     logging.info("Generating flashcards")
-    for leetcode_task_handle in task_handles:
-        note_generators.append(
-            generate_anki_note(
-                leetcode_data,
-                leetcode_model,
-                leetcode_task_handle,
+    for current_problem in current_problems:
+        if current_problem in problem_ids_to_slug:
+            note_generators.append(
+                generate_anki_note(
+                    leetcode_data,
+                    leetcode_model,
+                    problem_ids_to_slug[current_problem],
+                )
             )
-        )
+
+    # logging.info("Generating flashcards")
+    # for leetcode_task_handle in task_handles:
+    #     note_generators.append(
+    #         generate_anki_note(
+    #             leetcode_data,
+    #             leetcode_model,
+    #             leetcode_task_handle,
+    #         )
+    #     )
 
     for leetcode_note in tqdm(note_generators, unit="flashcard"):
         leetcode_deck.add_note(await leetcode_note)
 
     genanki.Package(leetcode_deck).write_to_file(OUTPUT_FILE)
+
+
+async def get_current_problem_ids():
+    with open('current_problems.txt') as f_in:
+        lines = (line.rstrip() for line in f_in)
+        lines = list(line for line in lines if line)
+    return lines
 
 
 async def main() -> None:

@@ -8,6 +8,7 @@ from functools import cached_property
 from typing import Callable, Dict, List, Tuple, Type
 
 # https://github.com/prius/python-leetcode
+import diskcache as diskcache
 import leetcode.api.default_api  # type: ignore
 import leetcode.api_client  # type: ignore
 import leetcode.auth  # type: ignore
@@ -20,7 +21,7 @@ import leetcode.models.graphql_question_detail  # type: ignore
 import urllib3  # type: ignore
 from tqdm import tqdm  # type: ignore
 
-CACHE_DIR = "cache"
+CACHE_SLUG_DIR = "cache/cache_slug"
 
 
 def _get_leetcode_api_client() -> leetcode.api.default_api.DefaultApi:
@@ -33,7 +34,8 @@ def _get_leetcode_api_client() -> leetcode.api.default_api.DefaultApi:
 
     configuration = leetcode.configuration.Configuration()
 
-    session_id = os.environ["LEETCODE_SESSION_ID"]
+    with open('session.txt') as f:
+        session_id = f.read()
     csrf_token = leetcode.auth.get_csrf_cookie(session_id)
 
     configuration.api_key["x-csrftoken"] = csrf_token
@@ -99,6 +101,7 @@ class LeetcodeData:
         self._start = start
         self._stop = stop
 
+
     @cached_property
     def _api_instance(self) -> leetcode.api.default_api.DefaultApi:
         return _get_leetcode_api_client()
@@ -110,8 +113,25 @@ class LeetcodeData:
         """
         Cached method to return dict (problem_slug -> question details)
         """
-        problems = self._get_problems_data()
+        problem_cache = diskcache.Cache(CACHE_SLUG_DIR)
+        problems = []
+        if problem_cache:
+            print("Existing cache is found")
+            for key in problem_cache.iterkeys():
+                problems.append(problem_cache.get(key))
+        else:
+            print("Creating a new cache")
+            problems = self._get_problems_data()
+            for problem in problems:
+                problem_cache[problem.title_slug] = problem
         return {problem.title_slug: problem for problem in problems}
+
+    @cached_property
+    def _id_cache(self) -> Dict[str, str]:
+        """
+        Cached method to return (problem_id -> problem_slug)
+        """
+        return {problem.question_frontend_id: problem.title_slug for _, problem in self._cache.items()}
 
     @retry(times=3, exceptions=(urllib3.exceptions.ProtocolError,), delay=5)
     def _get_problems_count(self) -> int:
@@ -239,6 +259,14 @@ class LeetcodeData:
         Example: ["two-sum", "three-sum"]
         """
         return list(self._cache.keys())
+
+    async def all_problems_ids_to_slug(self) -> Dict[str, str]:
+        """
+        Get a dict of problem_id:title_slug for all known problems.
+
+        Example: {1: "two-sum", 2: "three-sum"}
+        """
+        return self._id_cache
 
     def _get_problem_data(
         self, problem_slug: str

@@ -37,3 +37,14 @@ make generate
 ```
 
 You'll get `leetcode.apkg` file, which you can import directly to your anki app.
+
+## Installation for Devs
+Open the project in PyCharm
+
+Run `pip install -r requirements.txt`
+
+Create a `session.txt` in the root folder and paste your leetcode session in it (You can get it directly from your browser (if you're using chrome, cookies can be found here chrome://settings/cookies/detail?site=leetcode.com))
+
+Add the list of problem ids into the `current_problems.txt` file
+
+Run `python generate.py` from terminal
